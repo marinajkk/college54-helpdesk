@@ -9,17 +9,20 @@ for kind in root sub; do
   curl --fail --silent --show-error --retry 2 --max-time 30 \
     "https://gu-st.ru/content/lending/russian_trusted_${kind}_ca_pem.crt" \
     -o "$cert_dir/$kind.crt"
-  openssl x509 -in "$cert_dir/$kind.crt" -noout
+  openssl x509 -in "$cert_dir/$kind.crt" -outform PEM -out "$cert_dir/$kind.pem"
 done
-cat "$cert_dir/root.crt" "$cert_dir/sub.crt" > "$cert_dir/max.pem"
-# Probe TLS without sending any credentials. HTTP 401 here is expected.
-curl -sS --cacert "$cert_dir/max.pem" --max-time 20 \
-  https://platform-api2.max.ru/me -o /dev/null
+cat "$cert_dir/root.pem" "$cert_dir/sub.pem" > "$cert_dir/max.pem"
+python -m pip install -q -r requirements.txt
+SSL_CERT_FILE="$cert_dir/max.pem" python - <<'PY'
+import httpx
+response = httpx.get("https://platform-api2.max.ru/me", timeout=20)
+if response.status_code >= 500:
+    raise SystemExit(f"MAX API: HTTP {response.status_code}")
+PY
 read -rsp "Вставь токен MAX и нажми Enter: " MAX_BOT_TOKEN
 printf '\n'
 [[ -n "$MAX_BOT_TOKEN" ]] || { echo "Получен пустой токен"; exit 1; }
 export MAX_BOT_TOKEN
-python -m pip install -q -r requirements.txt
 MAX_WEBHOOK_SECRET=$(python -c 'import secrets; print(secrets.token_hex(32))')
 export MAX_WEBHOOK_SECRET
 SSL_CERT_FILE="$cert_dir/max.pem" python -m uvicorn max_bot:app --host 0.0.0.0 --port 8000 &
