@@ -1,0 +1,6 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,login TEXT NOT NULL UNIQUE,hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('student','tech')));
+CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,uid INTEGER NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS tickets(id INTEGER PRIMARY KEY,owner INTEGER NOT NULL REFERENCES users(id),issue TEXT NOT NULL,room TEXT NOT NULL,scope TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Новая' CHECK(status IN ('Новая','В работе','Решена')),reply TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS by_owner ON tickets(owner,id);
+PRAGMA user_version=1;

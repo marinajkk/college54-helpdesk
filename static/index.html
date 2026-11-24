@@ -1,0 +1,28 @@
+<!DOCTYPE html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Связь · Техническая поддержка</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#edf2ef;color:#143c37;font:17px/1.55 Inter,system-ui,sans-serif}header{background:#143c37;color:white;padding:16px max(5vw,20px);display:flex;align-items:center;justify-content:space-between}header b{letter-spacing:.08em}main{max-width:820px;margin:6vh auto;padding:0 16px}section,article{background:white;border:1px solid #c9d7d2;border-radius:16px;padding:clamp(18px,4vw,38px);margin:16px 0}h1{font-size:clamp(28px,5vw,46px);line-height:1.1;margin:8px 0 24px}input,textarea,button{font:inherit;border-radius:8px;padding:10px 14px}input,textarea{display:block;width:100%;border:1px solid #829c93;margin:4px 0 16px}button{cursor:pointer;border:1px solid #32675e;background:white;color:#16483f;margin:4px}button.primary{background:#145546;color:white}button:disabled{opacity:.6}small{color:#50675e}#notice{font-weight:600}label{display:block}article{padding:16px;background:#f5f8f6;overflow-wrap:anywhere}nav{display:flex;flex-wrap:wrap}[hidden]{display:none!important}</style>
+<header><b>СВЯЗЬ / 54</b><span>Техподдержка</span></header><main><p role="status" id="notice"></p><section id="auth"><small>Колледж связи · Учебный проект</small><h1>Вход в поддержку</h1><form id="credentials"><label>Логин<input id="login" required pattern="[a-zA-Z0-9_.\-]{3,40}" title="3–40 латинских букв, цифр, точек, дефисов или подчёркиваний"></label><label>Пароль<input type="password" id="password" required minlength="10"></label><button class="primary" value="login">Войти</button><button value="register">Зарегистрироваться</button></form></section>
+<div id="desk" hidden><nav><button id="chatTab">Чат с ботом</button><button id="queueTab">Заявки</button><button id="exit">Выйти</button></nav>
+<section id="chat"><small>Виртуальный помощник</small><h1>Что случилось?</h1><form id="dialog"><label>Опишите неисправность<textarea id="issue" required minlength="3" maxlength="500" placeholder="В кабинете 305 не работает интернет"></textarea></label><button class="primary">Отправить боту</button></form>
+<form id="details" hidden><p id="question"></p><label>Уточнение<input id="scope" required maxlength="300"></label><label>Кабинет<input id="room" required maxlength="30"></label><button class="primary">Создать заявку</button><button type="button" id="back">Изменить описание</button></form></section>
+<section id="queue" hidden><small id="who"></small><h1 id="queueTitle"></h1><button id="refresh">Обновить</button><div id="rows"></div></section></div></main>
+<script>
+const el=id=>document.getElementById(id); let profile;
+const show=(id,on)=>el(id).hidden=!on;
+async function api(path,method='GET',body){
+ const r=await fetch('/api/'+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+ const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'Проверьте длину и формат полей');return data}
+function tab(chat){show('chat',chat);show('queue',!chat)}
+async function enter(){profile=await api('me');show('auth',false);show('desk',true);el('who').textContent=profile.login;el('queueTitle').textContent=profile.role==='tech'?'Очередь техника':'Мои заявки';if(profile.role==='tech')await list();else tab(true)}
+function node(tag,text,parent){const n=document.createElement(tag);n.textContent=text;parent.append(n);return n}
+async function list(){const items=await api('tickets');tab(false);const box=el('rows');box.replaceChildren();
+ if(!items.length)node('p','Заявок пока нет.',box);
+ for(const t of items){const card=node('article','',box);node('small','#'+t.id+' · Кабинет '+t.room+' · '+t.status,card);node('h3',t.issue,card);node('p',t.scope,card);if(t.reply)node('p','Ответ техника: '+t.reply,card);
+ if(profile.role==='tech'&&t.status!=='Решена'){const label=node('label','Комментарий техника',card),input=node('input','',label);input.maxLength=500;node('button',t.status==='Новая'?'Взять в работу':'Отметить решённой',card).onclick=async()=>{await api('tickets/'+t.id,'PATCH',{reply:input.value});await list()}}
+ if(profile.role==='student'&&t.status==='Новая')node('button','Отменить заявку',card).onclick=async()=>{if(confirm('Отменить эту заявку?')){await api('tickets/'+t.id,'DELETE');await list()}}}}
+window.onunhandledrejection=e=>{el('notice').textContent=e.reason.message};
+el('credentials').onsubmit=async e=>{e.preventDefault();const body={login:el('login').value,password:el('password').value};if(e.submitter.value==='register')await api('register','POST',body);await api('login','POST',body);el('password').value='';el('notice').textContent='';await enter()};
+el('dialog').onsubmit=async e=>{e.preventDefault();const data=await api('chat','POST',{text:el('issue').value});el('question').textContent=data.question;el('room').value=data.room;el('issue').readOnly=true;el('dialog').querySelector('button').hidden=true;show('details',true);el('scope').focus()};
+function reset(){show('details',false);el('issue').readOnly=false;el('dialog').querySelector('button').hidden=false}
+el('back').onclick=reset;el('details').onsubmit=async e=>{e.preventDefault();const t=await api('tickets','POST',{issue:el('issue').value,room:el('room').value,scope:el('scope').value});el('notice').textContent='Заявка № '+t.id+' создана';reset();el('dialog').reset();el('details').reset();await list()};
+el('queueTab').onclick=list;el('refresh').onclick=list;el('chatTab').onclick=()=>tab(true);el('exit').onclick=async()=>{await api('logout','POST');location.reload()};enter().catch(()=>{});
+</script></html>
